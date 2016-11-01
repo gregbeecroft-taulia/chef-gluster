@@ -20,8 +20,10 @@
 #
 
 # Prepare Physical volumes
-node['gluster']['server']['disks'].each do |physical_device|
-  lvm_physical_volume physical_device
+unless node['gluster']['server']['disks'].nil? || node['gluster']['server']['disks'].empty?
+  node['gluster']['server']['disks'].each do |physical_device|
+    lvm_physical_volume physical_device
+  end
 end
 
 # Create and start volumes
@@ -41,10 +43,17 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
         filesystem = 'xfs'
       end
       # Even though this says volume_name, it's actually Brick Name. At the moment this method only supports one brick per volume per server
-      logical_volume volume_name do
-        size volume_values['size']
-        filesystem filesystem
-        mount_point "#{node['gluster']['server']['brick_mount_path']}/#{volume_name}"
+      thin_pool "#{volume_name}-thin-pool" do
+        size '98%VG'
+        group 'gluster'
+
+        thin_volume volume_name do
+          size volume_values['size']
+          filesystem filesystem
+          group 'gluster'
+          pool "#{volume_name}-thin-pool"
+          mount_point "#{node['gluster']['server']['brick_mount_path']}/#{volume_name}"
+        end
       end
     end
     bricks << "#{node['gluster']['server']['brick_mount_path']}/#{volume_name}/brick"
