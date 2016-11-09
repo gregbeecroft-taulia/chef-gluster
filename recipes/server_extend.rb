@@ -40,12 +40,12 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
   next if node['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join'].empty?
   # The number of bricks in bricks_waiting_to_join has to be a modulus of the replica_count we are using for our gluster volume
   if (brick_count % replica_count).zero?
-    Chef::Log.info("Attempting to add new bricks into volume #{volume_name}")
-    execute "gluster volume add-brick #{volume_name} #{node['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join']}" do
-      action :run
-    end
-    node.set['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join'] = ''
-  elsif volume_values['volume_type'] == 'striped'
+    #Chef::Log.info("Attempting to add new bricks into volume #{volume_name}")
+    #execute "gluster volume add-brick #{volume_name} #{node['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join']}" do
+    #  action :run
+    #end
+    #node.set['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join'] = ''
+  if volume_values['volume_type'] == 'striped'
     Chef::Log.warn("#{volume_name} is a striped volume, adjusting replica count to match new number of bricks")
     node.set['gluster']['server']['volumes'][volume_name][replica_count] = brick_count
     execute "gluster volume add-brick #{volume_name} stripe #{brick_count} #{node['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join']}" do
@@ -62,5 +62,6 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
   else
     Chef::Log.warn("There are #{brick_count} bricks waiting to be added to #{volume_name}, but the replica count is #{replica_count}. \
     I will wait until a modulus of the replica count is available. The bricks to be added are #{node['gluster']['server']['bricks_waiting_to_join']}")
+  end
   end
 end
