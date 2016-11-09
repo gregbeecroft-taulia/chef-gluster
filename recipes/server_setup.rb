@@ -68,6 +68,15 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
     # Configure the trusted pool if needed
     volume_values['peers'].each do |peer|
       next if peer == node['fqdn'] || peer == node['hostname']
+      ## TODO: remove/re-add peer and remove/re-add brick if recovering from a dead node
+      execute "gluster --mode=script volume remove-brick activemq replica 2 #{peer}:/mnt/gluster/activemq/brick force" do
+        action :run
+        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer rejected (Connected)"
+      end
+      execute "gluster --mode=script peer detach #{peer}" do
+        action :run
+        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer rejected (Connected)"
+      end
       execute "gluster peer probe #{peer}" do
         action :run
         not_if "egrep '^hostname.+=#{peer}$' /var/lib/glusterd/peers/*"
@@ -79,6 +88,15 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
         action :run
         retries node['gluster']['server']['peer_wait_retries']
         retry_delay node['gluster']['server']['peer_wait_retry_delay']
+      end
+      escaped_peer = peer.gsub(/\./) { |m| "\\#{m}" }
+      gluster_output = `gluster volume info activemq`
+      if gluster_output !~ /Brick.*#{escaped_peer}/
+        # Probably a dead node, let's re-add the brick
+        execute "gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick" do
+          action :run
+          only_if "gluster volume info activemq"
+        end
       end
     end
 
