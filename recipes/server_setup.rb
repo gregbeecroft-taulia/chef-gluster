@@ -71,11 +71,11 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
       ## TODO: remove/re-add peer and remove/re-add brick if recovering from a dead node
       execute "gluster --mode=script volume remove-brick activemq replica 2 #{peer}:/mnt/gluster/activemq/brick force" do
         action :run
-        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer rejected (Connected)'"
+        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer Rejected (Connected)'"
       end
       execute "gluster --mode=script peer detach #{peer}" do
         action :run
-        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer rejected (Connected)'"
+        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer Rejected (Connected)'"
       end
       execute "gluster peer probe #{peer}" do
         action :run
