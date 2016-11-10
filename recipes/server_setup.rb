@@ -96,21 +96,10 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
           gluster_output = `gluster volume info activemq`
           if gluster_output !~  /Brick.*#{escaped_peer}/
             # Probably a dead node, let's re-add the brick
-            execute "gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick" do
-              action :run
-              only_if "gluster volume info activemq"
-            end
+            `gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick`
           end
         end
-      end
-
-      gluster_output = `gluster volume info activemq`
-      if gluster_output !~ /Brick.*#{escaped_peer}/
-        # Probably a dead node, let's re-add the brick
-        execute "gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick" do
-          action :run
-          only_if "gluster volume info activemq"
-        end
+        only_if "gluster volume info activemq"
       end
     end
 
