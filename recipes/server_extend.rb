@@ -31,7 +31,7 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
                   end
       Chef::Log.info("Checking #{peer_name}:#{brick}")
       unless brick_in_volume?(peer_name, brick, volume_name)
-        node.default['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join'] << " #{peer_name}:#{brick}"
+        node.normal['gluster']['server']['volumes'][volume_name]['bricks_waiting_to_join'] << " #{peer_name}:#{brick}"
       end
     end
   end

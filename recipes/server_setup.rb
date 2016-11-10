@@ -68,15 +68,21 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
     # Configure the trusted pool if needed
     volume_values['peers'].each do |peer|
       next if peer == node['fqdn'] || peer == node['hostname']
-      ## TODO: remove/re-add peer and remove/re-add brick if recovering from a dead node
-      execute "gluster --mode=script volume remove-brick activemq replica 2 #{peer}:/mnt/gluster/activemq/brick force" do
-        action :run
-        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer Rejected (Connected)'"
+      ## Remove/re-add peer and remove/re-add brick if recovering from a dead node
+      if File.exists?('/sbin/gluster')
+        peer_status_output = `gluster peer status`
+        if peer_status_output =~ /Peer Rejected \(Connected\)/
+          # Bad node, let's get the peer name and remove it
+          peer_status_array = peer_status_output.split(/\n+/)
+          temp_index = peer_status_array.index { |n| n =~ /Peer Rejected \(Connected\)/ }
+          peer_index = temp_index - 2
+          hostname_peer = peer_status_array[peer_index]
+          hostname = hostname_peer[/(?<=\: ).*\.taulia\.com/]
+          `gluster --mode=script volume remove-brick activemq replica 2 #{hostname}:/mnt/gluster/activemq/brick force`
+          `gluster --mode=script peer detach #{hostname}`
+        end
       end
-      execute "gluster --mode=script peer detach #{peer}" do
-        action :run
-        only_if "gluster peer status | grep -A 2 -B 1 #{peer} | grep 'Peer Rejected (Connected)'"
-      end
+
       execute "gluster peer probe #{peer}" do
         action :run
         not_if "egrep '^hostname.+=#{peer}$' /var/lib/glusterd/peers/*"
@@ -91,16 +97,6 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
       end
       escaped_peer = peer.gsub(/\./) { |m| "\\#{m}" }
 
-      ruby_block "gluster output" do
-        block do
-          gluster_output = `gluster volume info activemq`
-          if gluster_output !~  /Brick.*#{escaped_peer}/
-            # Probably a dead node, let's re-add the brick
-            `gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick`
-          end
-        end
-        only_if "gluster volume info activemq"
-      end
     end
 
     # Create the volume if it doesn't exist
