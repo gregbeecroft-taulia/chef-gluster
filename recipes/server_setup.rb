@@ -90,6 +90,20 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
         retry_delay node['gluster']['server']['peer_wait_retry_delay']
       end
       escaped_peer = peer.gsub(/\./) { |m| "\\#{m}" }
+
+      ruby_block "gluster output" do
+        block do
+          gluster_output = `gluster volume info activemq`
+          if gluster_output !~  /Brick.*#{escaped_peer}/
+            # Probably a dead node, let's re-add the brick
+            execute "gluster --mode=script volume add-brick activemq replica 3 #{peer}:/mnt/gluster/activemq/brick" do
+              action :run
+              only_if "gluster volume info activemq"
+            end
+          end
+        end
+      end
+
       gluster_output = `gluster volume info activemq`
       if gluster_output !~ /Brick.*#{escaped_peer}/
         # Probably a dead node, let's re-add the brick
