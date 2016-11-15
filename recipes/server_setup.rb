@@ -19,6 +19,8 @@
 # limitations under the License.
 #
 
+require 'resolv'
+
 # Prepare Physical volumes
 unless node['gluster']['server']['disks'].nil? || node['gluster']['server']['disks'].empty?
   node['gluster']['server']['disks'].each do |physical_device|
@@ -74,9 +76,9 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
       end
       peer_index = temp_index - 2
       hostname_peer = peer_status_array[peer_index]
-      hostname = hostname_peer[/(?<=\: ).*\.taulia\.com/]
-      `gluster --mode=script volume remove-brick activemq replica 2 #{hostname}:/mnt/gluster/activemq/brick force`
-      `gluster --mode=script peer detach #{hostname}`
+      ip = hostname_peer[/(?<=\: ).*$/]
+      `gluster --mode=script volume remove-brick activemq replica 2 #{ip}:/mnt/gluster/activemq/brick force`
+      `gluster --mode=script peer detach #{ip}`
     end
   end
 
@@ -94,19 +96,19 @@ end
     volume_values['peers'].each do |peer|
       next if peer == node['fqdn'] || peer == node['hostname']
 
-      execute "gluster peer probe #{peer}" do
+      peer_ip = Resolv.getaddress(peer)
+      execute "gluster peer probe #{peer_ip}" do
         action :run
-        not_if "egrep '^hostname.+=#{peer}$' /var/lib/glusterd/peers/*"
+        not_if "egrep '^hostname.+=#{peer_ip}$' /var/lib/glusterd/peers/*"
         retries node['gluster']['server']['peer_retries']
         retry_delay node['gluster']['server']['peer_retry_delay']
       end
       # Wait here until the peer reaches connected status (needed for volume create later)
-      execute "gluster peer status | sed -e '/Other names:/d' | grep -A 2 -B 1 #{peer} | grep 'Peer in Cluster (Connected)'" do
+      execute "gluster peer status | sed -e '/Other names:/d' | grep -A 2 -B 1 #{peer_ip} | grep 'Peer in Cluster (Connected)'" do
         action :run
         retries node['gluster']['server']['peer_wait_retries']
         retry_delay node['gluster']['server']['peer_wait_retry_delay']
       end
-      escaped_peer = peer.gsub(/\./) { |m| "\\#{m}" }
 
     end
 
@@ -165,8 +167,9 @@ end
       end
       unless options.empty?
         volume_bricks.each do |peer, vbricks|
+          peer_ip = Resolv.getaddress(peer)
           vbricks.each do |brick|
-            options << " #{peer}:#{brick}"
+            options << " #{peer_ip}:#{brick}"
             if vbricks.count > 1
               Chef::Log.warn('We have multiple bricks on the same peer, adding force flag to volume create')
               force = true
