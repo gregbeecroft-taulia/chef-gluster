@@ -84,7 +84,7 @@ ruby_block 'check for master recovery' do
   block do
     # Only continue if the node is the first peer in the array
     if node['gluster']['master_recovery'] =~ /[Tt]rue/ && (volume_values['peers'].first == node['fqdn'] || volume_values['peers'].first == node['hostname'])
-      Chef::Application.fatal!("Exiting chef-client run, this master is being recovered and will not try to peer other nodes, but will remain in a peerable state.", 0)
+      throw :end_client_run_early
     end
   end
 end
