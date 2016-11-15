@@ -63,25 +63,50 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
     Chef::Log.warn('This server is not configured for this volume')
   end
 
-  # Only continue if the node is the first peer in the array
-  if volume_values['peers'].first == node['fqdn'] || volume_values['peers'].first == node['hostname']
+  if File.exists?('/sbin/gluster')
+    peer_status_output = `gluster peer status`
+    if peer_status_output =~ /Peer Rejected \(Connected\)/ || peer_status_output =~ /Peer in Cluster \(Disconnected\)/
+      # Bad node, let's get the peer name and remove it
+      peer_status_array = peer_status_output.split(/\n+/)
+      temp_index = peer_status_array.index { |n| n =~ /Peer Rejected \(Connected\)/ }
+      if temp_index.nil? || temp_index.empty? || temp_index != true
+        temp_index = peer_status_array.index { |n| n =~ /Peer in Cluster \(Disconnected\)/ }
+      end
+      peer_index = temp_index - 2
+      hostname_peer = peer_status_array[peer_index]
+      hostname = hostname_peer[/(?<=\: ).*\.taulia\.com/]
+      `gluster --mode=script volume remove-brick activemq replica 2 #{hostname}:/mnt/gluster/activemq/brick force`
+      `gluster --mode=script peer detach #{hostname}`
+    end
+  end
+
+ruby_block 'check for master recovery' do
+  block do
+    # Only continue if the node is the first peer in the array
+    if node['gluster']['master_recovery'] =~ /[Tt]rue/
+      raise "Exiting chef-client run, this master is being recovered and will not try to peer other nodes, but will remain in a peerable state."
+    end
+  end
+end
+
+  if volume_values['peers'].first == node['fqdn'] || volume_values['peers'].first == node['hostname'] || node['gluster']['master_recovery'] =~ /[Tt]rue/
     # Configure the trusted pool if needed
     volume_values['peers'].each do |peer|
       next if peer == node['fqdn'] || peer == node['hostname']
       ## Remove/re-add peer and remove/re-add brick if recovering from a dead node
-      if File.exists?('/sbin/gluster')
-        peer_status_output = `gluster peer status`
-        if peer_status_output =~ /Peer Rejected \(Connected\)/
+      #if File.exists?('/sbin/gluster')
+        #peer_status_output = `gluster peer status`
+        #if peer_status_output =~ /Peer Rejected \(Connected\)/
           # Bad node, let's get the peer name and remove it
-          peer_status_array = peer_status_output.split(/\n+/)
-          temp_index = peer_status_array.index { |n| n =~ /Peer Rejected \(Connected\)/ }
-          peer_index = temp_index - 2
-          hostname_peer = peer_status_array[peer_index]
-          hostname = hostname_peer[/(?<=\: ).*\.taulia\.com/]
-          `gluster --mode=script volume remove-brick activemq replica 2 #{hostname}:/mnt/gluster/activemq/brick force`
-          `gluster --mode=script peer detach #{hostname}`
-        end
-      end
+          #peer_status_array = peer_status_output.split(/\n+/)
+          #temp_index = peer_status_array.index { |n| n =~ /Peer Rejected \(Connected\)/ }
+          #peer_index = temp_index - 2
+          #hostname_peer = peer_status_array[peer_index]
+          #hostname = hostname_peer[/(?<=\: ).*\.taulia\.com/]
+          #`gluster --mode=script volume remove-brick activemq replica 2 #{hostname}:/mnt/gluster/activemq/brick force`
+          #`gluster --mode=script peer detach #{hostname}`
+        #end
+      #end
 
       execute "gluster peer probe #{peer}" do
         action :run
