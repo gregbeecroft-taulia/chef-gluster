@@ -69,7 +69,7 @@ node['gluster']['server']['volumes'].each do |volume_name, volume_values|
       # Bad node, let's get the peer name and remove it
       peer_status_array = peer_status_output.split(/\n+/)
       temp_index = peer_status_array.index { |n| n =~ /Peer Rejected \(Connected\)/ }
-      if temp_index.nil? || temp_index.zero? || temp_index != true
+      if temp_index.nil? || temp_index.zero?
         temp_index = peer_status_array.index { |n| n =~ /Peer in Cluster \(Disconnected\)/ }
       end
       peer_index = temp_index - 2
